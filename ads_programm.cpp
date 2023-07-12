@@ -48,19 +48,15 @@ class LogLinearRMQ : public AbstractRMQ {
         }
     public:
         LogLinearRMQ(uint32_t n, vector<uint64_t> &v) {
-            rmq_solutions = vector<vector<uint32_t>>(n);
+            rmq_solutions = vector<vector<uint32_t>>(n - 1);
             this->v = &v;
-
-            for (uint32_t s = 0; s < n; s++) {
-                rmq_solutions[s].push_back(s);
-            }
             
             uint32_t idx1, idx2;
 
             for (uint32_t l = 1; l <= log2(n); l++) {
                 for (uint32_t s = 0; s + pow(2, l) - 1 < n; s++) {
-                    idx1 = rmq_solutions[s][l - 1];
-                    idx2 = rmq_solutions[s + pow(2, l - 1)][l - 1];
+                    idx1 = (l > 1) ? rmq_solutions[s][l - 2] : s;
+                    idx2 = (l > 1) ? rmq_solutions[s + pow(2, l - 1)][l - 2] : s + pow(2, l - 1);
                     if (v[idx1] < v[idx2]) {
                         rmq_solutions[s].push_back(idx1);
                     } else {
@@ -68,17 +64,18 @@ class LogLinearRMQ : public AbstractRMQ {
                     }
                 }
             }
+
         }
 
         int rmq(uint32_t s, uint32_t e) {
-            if (is_power_of_2(e - s + 1)) {
-                uint32_t l = log2(e - s + 1);
-                return rmq_solutions[s][l];
-            }
-            uint32_t l = floor(log2(e - s - 1));
+            uint32_t l = log2(e - s + 1);
 
-            uint32_t idx1 = rmq_solutions[s][l];
-            uint32_t idx2 = rmq_solutions[e - pow(2, l) + 1][l];
+            if (is_power_of_2(e - s + 1)) {
+                return (l > 0) ? rmq_solutions[s][l - 1] : s;
+            }
+
+            uint32_t idx1 = (l > 0) ? rmq_solutions[s][l - 1] : s;
+            uint32_t idx2 = (l > 0) ? rmq_solutions[e - pow(2, l) + 1][l - 1]: e - pow(2, l) + 1;
 
             if ((*v)[idx1] < (*v)[idx2]) {
                 return idx1;
