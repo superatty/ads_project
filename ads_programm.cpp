@@ -10,7 +10,7 @@ using namespace std;
 
 class AbstractRMQ
 {
-    virtual int rmq(uint32_t ,uint32_t) = 0;
+    virtual uint32_t rmq(uint32_t ,uint32_t) = 0;
 };
 
 class NaiveRMQ : public AbstractRMQ {
@@ -32,7 +32,7 @@ class NaiveRMQ : public AbstractRMQ {
 
         }
 
-        int rmq(uint32_t s, uint32_t e) {
+        uint32_t rmq(uint32_t s, uint32_t e) {
             if (s == e) return s;
             return rmq_solutions[s][e - s - 1];
         }
@@ -67,7 +67,7 @@ class LogLinearRMQ : public AbstractRMQ {
 
         }
 
-        int rmq(uint32_t s, uint32_t e) {
+        uint32_t rmq(uint32_t s, uint32_t e) {
             uint32_t l = log2(e - s + 1);
 
             if (is_power_of_2(e - s + 1)) {
