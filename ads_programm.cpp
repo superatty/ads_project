@@ -10,7 +10,8 @@ using namespace std;
 
 class AbstractRMQ
 {
-    virtual uint32_t rmq(uint32_t ,uint32_t) = 0;
+    public:
+        virtual uint32_t rmq(uint32_t ,uint32_t) = 0;
 };
 
 class NaiveRMQ : public AbstractRMQ {
@@ -89,7 +90,7 @@ class LinearRMQ : public AbstractRMQ {
     private:
         vector<uint64_t> min_within_block;
         vector<uint32_t> min_idx_within_block;
-        LogLinearRMQ query_spanning_block_rmq_ds;
+        LogLinearRMQ* query_spanning_block_rmq_ds;
     public:
         LinearRMQ(uint32_t n, vector<uint64_t> &v) {
             double s = log(n) / 4;
@@ -108,12 +109,17 @@ class LinearRMQ : public AbstractRMQ {
                 min_idx_within_block.push_back(min_idx_this_block);
             }
 
-            query_spanning_block_rmq_ds = LogLinearRMQ(ceil(n / s), min_within_block);
+            query_spanning_block_rmq_ds = new LogLinearRMQ(n, v);
         }
 
         uint32_t spanning_block_rmq(uint32_t block_idx1, uint32_t block_idx2) {
-            uint32_t min_block_idx = query_spanning_block_rmq_ds.rmq(block_idx1, block_idx2);
+            uint32_t min_block_idx = query_spanning_block_rmq_ds->rmq(block_idx1, block_idx2);
             return min_idx_within_block[min_block_idx];
+        }
+
+        uint32_t rmq(uint32_t s, uint32_t e) {
+            // TODO
+            return 0;
         }
 };
 
