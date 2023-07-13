@@ -85,6 +85,39 @@ class LogLinearRMQ : public AbstractRMQ {
         }
 };
 
+class LinearRMQ : public AbstractRMQ {
+    private:
+        vector<uint64_t> min_within_block;
+        vector<uint32_t> min_idx_within_block;
+        LogLinearRMQ query_spanning_block_rmq_ds;
+    public:
+        LinearRMQ(uint32_t n, vector<uint64_t> &v) {
+            double s = log(n) / 4;
+
+            for (uint32_t i = 0; i < ceil(n / s); i++) {
+                uint64_t min_this_block = v[0];
+                uint32_t min_idx_this_block = 0;
+                for (uint32_t j = 1; j < s; j++) {
+                    if (v[j] < min_this_block) {
+                        min_this_block = v[j];
+                        min_idx_this_block = j;
+                    }
+                }
+
+                min_within_block.push_back(min_this_block);
+                min_idx_within_block.push_back(min_idx_this_block);
+            }
+
+            query_spanning_block_rmq_ds = LogLinearRMQ(ceil(n / s), min_within_block);
+        }
+
+        uint32_t spanning_block_rmq(uint32_t block_idx1, uint32_t block_idx2) {
+            uint32_t min_block_idx = query_spanning_block_rmq_ds.rmq(block_idx1, block_idx2);
+            return min_idx_within_block[min_block_idx];
+        }
+};
+
+
 void run_naive_rmq(ifstream &input_file, ofstream &output_file) {
     vector<uint64_t> v;
     uint32_t n;
