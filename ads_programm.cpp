@@ -108,17 +108,6 @@ public:
     }
 };
 
-struct CartesianTree
-{
-    uint32_t min_idx;
-    CartesianTree *parent = nullptr;
-    CartesianTree *left_child = nullptr;
-    CartesianTree *right_child = nullptr;
-    vector<bool> representation;
-
-    bool is_root() { return parent == nullptr; }
-};
-
 template <typename T>
 void printVector(const std::vector<T> &vec)
 {
@@ -129,54 +118,29 @@ void printVector(const std::vector<T> &vec)
     std::cout << "\n";
 }
 
-CartesianTree construct_cartesian_tree(vector<uint64_t> &v, uint32_t start_idx, uint32_t end_idx, uint32_t block_size)
+vector<bool> construct_c_tree(vector<uint64_t> &v, uint32_t start_idx, uint32_t end_idx, uint32_t block_size)
 {
-    vector<bool> repr;
-    CartesianTree *c_tree = new CartesianTree();
-    c_tree->min_idx = 0;
+    vector<bool> repr; // TODO would allocating space be better or worse?
+    vector<uint64_t> stack;
 
-    CartesianTree *cur_c_tree = c_tree;
-    for (uint32_t i = start_idx + 1; i < end_idx; i++)
+    stack.push_back(v[start_idx]);
+
+    for (size_t i = start_idx + 1; i < end_idx; i++)
     {
-        while ((!cur_c_tree->is_root()) && (v[i] < v[start_idx + cur_c_tree->min_idx]))
+        if ((!stack.empty()) && (v[i] < stack.back()))
         {
             repr.push_back(1);
-            cur_c_tree = cur_c_tree->parent;
-        }
-
-        CartesianTree *new_c_tree = new CartesianTree();
-        new_c_tree->min_idx = i - start_idx;
-
-        if (cur_c_tree->is_root() && (v[i] < v[start_idx + cur_c_tree->min_idx]))
-        {
-            repr.push_back(1);
-            new_c_tree->left_child = cur_c_tree;
-            cur_c_tree->parent = new_c_tree;
-            c_tree = new_c_tree;
-        }
-        else
-        {
-            new_c_tree->parent = cur_c_tree;
-            new_c_tree->left_child = cur_c_tree->right_child;
-            if (new_c_tree->left_child != nullptr)
-            {
-                new_c_tree->left_child->parent = new_c_tree;
-            }
-            cur_c_tree->right_child = new_c_tree;
+            stack.pop_back();
         }
 
         repr.push_back(0);
-
-        cur_c_tree = new_c_tree;
+        stack.push_back(v[i]);
     }
 
     for (uint32_t i = end_idx - start_idx; i < block_size; i++)
-    {
         repr.push_back(0);
-    }
 
-    c_tree->representation = repr;
-    return *c_tree;
+    return repr;
 }
 
 class LinearRMQ : public AbstractRMQ
@@ -189,7 +153,7 @@ private:
     vector<uint32_t> min_idx_within_block;
     LogLinearRMQ *query_spanning_block_rmq_ds;
 
-    vector<vector<bool>> c_trees_dfuds;
+    vector<vector<bool>> c_trees;
     unordered_map<vector<bool>, vector<vector<uint32_t>>> c_tree_start_end_rmqs;
 
     void construct_c_tree_start_end_rmqs(uint32_t n)
@@ -205,17 +169,15 @@ private:
         do
         {
             LogLinearRMQ rmq_ds = LogLinearRMQ(n, v);
-            CartesianTree c_tree = construct_cartesian_tree(v, 0, n, n);
-            // vector<bool> dfuds_repr = c_tree.get_unbalanced_binary_dfuds_representation();
-            vector<bool> dfuds_repr = c_tree.representation;
+            vector<bool> c_tree = construct_c_tree(v, 0, n, n);
 
-            c_tree_start_end_rmqs[dfuds_repr] = vector<vector<uint32_t>>(n, vector<uint32_t>(n));
+            c_tree_start_end_rmqs[c_tree] = vector<vector<uint32_t>>(n, vector<uint32_t>(n));
 
             for (uint32_t i = 0; i < n; i++)
             {
                 for (uint32_t j = i; j < n; j++)
                 {
-                    c_tree_start_end_rmqs[dfuds_repr][i][j] = rmq_ds.rmq(i, j);
+                    c_tree_start_end_rmqs[c_tree][i][j] = rmq_ds.rmq(i, j);
                 }
             }
         } while (next_permutation(v.begin(), v.end()));
@@ -226,6 +188,7 @@ public:
     {
         this->v = &v;
         block_size = log2(n) / 4;
+        // block_size = 2;
 
         construct_c_tree_start_end_rmqs(block_size);
 
@@ -249,11 +212,11 @@ public:
             min_within_block.push_back(min_this_block);
             min_idx_within_block.push_back(min_idx_this_block);
 
-            CartesianTree block_c_tree = construct_cartesian_tree(v, start_idx, end_idx, block_size);
-            c_trees_dfuds.push_back(block_c_tree.representation);
+            vector<bool> block_c_tree = construct_c_tree(v, start_idx, end_idx, block_size);
+            c_trees.push_back(block_c_tree);
         }
 
-        query_spanning_block_rmq_ds = new LogLinearRMQ(n, min_within_block);
+        query_spanning_block_rmq_ds = new LogLinearRMQ(min_within_block.size(), min_within_block);
     }
 
     uint32_t spanning_block_rmq(uint32_t s_block, uint32_t e_block)
@@ -264,7 +227,7 @@ public:
 
     uint32_t within_block_rmq(uint32_t block_idx, uint32_t s, uint32_t e)
     {
-        return (block_idx * block_size) + c_tree_start_end_rmqs[c_trees_dfuds[block_idx]][s][e];
+        return (block_idx * block_size) + c_tree_start_end_rmqs[c_trees[block_idx]][s][e];
     }
 
     uint32_t rmq(uint32_t s, uint32_t e)
@@ -372,7 +335,6 @@ private:
     vector<bool> u_bv;
     vector<bool> l_bv;
 
-    // uint32_t u_bits;
     uint32_t l_bits;
 
     uint64_t max_elem;
@@ -418,16 +380,17 @@ public:
 
     uint64_t pred(uint64_t x)
     {
-        if (x < min_elem) {
+        if (x < min_elem)
+        {
             return UINT64_MAX;
         }
-        if (x >= max_elem) {
+        if (x >= max_elem)
+        {
             return max_elem;
         }
         uint64_t x_upper_half = x >> l_bits;
         uint32_t p = (x_upper_half != 0) ? upper_half_bv->select0(x_upper_half) : 0;
         uint32_t next_p = upper_half_bv->select0(x_upper_half + 1);
-
 
         uint32_t cur_pred_idx = upper_half_bv->rank1(p) - 1;
         for (uint32_t i = p + 1; i < next_p; i++)
@@ -560,10 +523,11 @@ void run_predecessor(ifstream &input_file, ofstream &output_file)
         v.push_back(elem);
     }
 
-    AbstractPredecessor* pd_ds = new EliasFano(v);
+    AbstractPredecessor *pd_ds = new EliasFano(v);
 
     uint64_t x;
-    while (input_file >> x) {
+    while (input_file >> x)
+    {
         output_file << pd_ds->pred(x) << endl;
     }
 }
