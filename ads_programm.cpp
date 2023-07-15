@@ -54,11 +54,6 @@ private:
     vector<vector<uint32_t>> rmq_solutions;
     vector<uint64_t> *v;
 
-    bool is_power_of_2(uint32_t n)
-    {
-        return ((n & (n - 1)) == 0);
-    }
-
 public:
     LogLinearRMQ(uint32_t n, vector<uint64_t> &v)
     {
@@ -87,7 +82,8 @@ public:
 
     uint32_t rmq(uint32_t s, uint32_t e)
     {
-        if (s == e) {
+        if (s == e)
+        {
             return s;
         }
         uint32_t l = log2(e - s);
@@ -125,7 +121,7 @@ vector<bool> construct_c_tree(vector<uint64_t> &v, uint32_t start_idx, uint32_t 
 
     for (size_t i = start_idx + 1; i < end_idx; i++)
     {
-        if ((!stack.empty()) && (v[i] < stack.back()))
+        while ((!stack.empty()) && (v[i] < stack.back()))
         {
             repr.push_back(1);
             stack.pop_back();
@@ -169,14 +165,15 @@ private:
             LogLinearRMQ rmq_ds = LogLinearRMQ(n, v);
             vector<bool> c_tree = construct_c_tree(v, 0, n, n);
 
+            if (c_tree_start_end_rmqs.find(c_tree) != c_tree_start_end_rmqs.end())
+                continue;
+
             c_tree_start_end_rmqs[c_tree] = vector<vector<uint32_t>>(n, vector<uint32_t>(n));
 
             for (uint32_t i = 0; i < n; i++)
             {
                 for (uint32_t j = i; j < n; j++)
-                {
                     c_tree_start_end_rmqs[c_tree][i][j] = rmq_ds.rmq(i, j);
-                }
             }
         } while (next_permutation(v.begin(), v.end()));
     }
@@ -186,7 +183,6 @@ public:
     {
         this->v = &v;
         block_size = log2(n) / 4;
-        // block_size = 2;
 
         construct_c_tree_start_end_rmqs(block_size);
 
@@ -388,7 +384,6 @@ public:
         }
         uint64_t x_upper_half = x >> l_bits;
 
-
         int32_t p = (x_upper_half != 0) ? upper_half_bv->select0(x_upper_half) : -1;
         int32_t next_p = upper_half_bv->select0(x_upper_half + 1);
 
@@ -549,7 +544,7 @@ int main(int argc, char *argv[])
     }
     else if (argv[1] == "rmq"s)
     {
-        run_linear_rmq(input_file, output_file);
+        run_loglinear_rmq(input_file, output_file);
     }
     else
     {
