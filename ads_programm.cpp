@@ -117,61 +117,27 @@ struct CartesianTree
     vector<bool> representation;
 
     bool is_root() { return parent == nullptr; }
-    // vector<bool> get_unbalanced_binary_dfuds_representation()
-    // {
-    //     vector<bool> dfuds;
-    //     if (left_child != nullptr)
-    //     {
-    //         dfuds.push_back(0);
-    //     }
-    //     if (right_child != nullptr)
-    //     {
-    //         dfuds.push_back(0);
-    //     }
-    //     dfuds.push_back(1);
-    //     if (left_child != nullptr)
-    //     {
-    //         vector<bool> left_dfuds = left_child->get_unbalanced_binary_dfuds_representation();
-    //         dfuds.insert(dfuds.end(), left_dfuds.begin(), left_dfuds.end());
-    //     }
-    //     if (right_child != nullptr)
-    //     {
-    //         vector<bool> right_dfuds = right_child->get_unbalanced_binary_dfuds_representation();
-    //         dfuds.insert(dfuds.end(), right_dfuds.begin(), right_dfuds.end());
-    //     }
-
-    //     return dfuds;
-    // }
-    // uint32_t rmq(uint32_t s, uint32_t e) {
-    //     if ((s <= min_idx) && (min_idx <= e)) {
-    //         return min_idx;
-    //     } else if (s > min_idx) {
-    //         return left_child->rmq(s, e);
-    //     } else if (e < min_idx) {
-    //         return right_child->rmq(s, e);
-    //     } else {
-    //         throw runtime_error("Invalid parameters for rmq:" + to_string(s) + "-" + to_string(e));
-    //     }
-    // }
 };
 
 template <typename T>
-void printVector(const std::vector<T>& vec) {
-    for(T i : vec) {
+void printVector(const std::vector<T> &vec)
+{
+    for (T i : vec)
+    {
         std::cout << i << " ";
     }
     std::cout << "\n";
 }
 
 CartesianTree construct_cartesian_tree(vector<uint64_t> &v, uint32_t start_idx, uint32_t end_idx, uint32_t block_size)
-{      
+{
     vector<bool> repr;
-    CartesianTree* c_tree = new CartesianTree();
+    CartesianTree *c_tree = new CartesianTree();
     c_tree->min_idx = 0;
 
-    CartesianTree* cur_c_tree = c_tree;
+    CartesianTree *cur_c_tree = c_tree;
     for (uint32_t i = start_idx + 1; i < end_idx; i++)
-    {   
+    {
         while ((!cur_c_tree->is_root()) && (v[i] < v[start_idx + cur_c_tree->min_idx]))
         {
             repr.push_back(1);
@@ -192,7 +158,8 @@ CartesianTree construct_cartesian_tree(vector<uint64_t> &v, uint32_t start_idx, 
         {
             new_c_tree->parent = cur_c_tree;
             new_c_tree->left_child = cur_c_tree->right_child;
-            if (new_c_tree->left_child != nullptr) {
+            if (new_c_tree->left_child != nullptr)
+            {
                 new_c_tree->left_child->parent = new_c_tree;
             }
             cur_c_tree->right_child = new_c_tree;
@@ -203,7 +170,8 @@ CartesianTree construct_cartesian_tree(vector<uint64_t> &v, uint32_t start_idx, 
         cur_c_tree = new_c_tree;
     }
 
-    for (uint32_t i = end_idx - start_idx; i < block_size; i++) {
+    for (uint32_t i = end_idx - start_idx; i < block_size; i++)
+    {
         repr.push_back(0);
     }
 
@@ -224,15 +192,18 @@ private:
     vector<vector<bool>> c_trees_dfuds;
     unordered_map<vector<bool>, vector<vector<uint32_t>>> c_tree_start_end_rmqs;
 
-    void construct_c_tree_start_end_rmqs(uint32_t n) {
+    void construct_c_tree_start_end_rmqs(uint32_t n)
+    {
         vector<uint64_t> v(n);
-    
+
         // Initialize vector with values from 0 to n-1
-        for(uint32_t i = 0; i < n; i++) {
+        for (uint32_t i = 0; i < n; i++)
+        {
             v[i] = i;
         }
 
-        do {
+        do
+        {
             LogLinearRMQ rmq_ds = LogLinearRMQ(n, v);
             CartesianTree c_tree = construct_cartesian_tree(v, 0, n, n);
             // vector<bool> dfuds_repr = c_tree.get_unbalanced_binary_dfuds_representation();
@@ -240,8 +211,10 @@ private:
 
             c_tree_start_end_rmqs[dfuds_repr] = vector<vector<uint32_t>>(n, vector<uint32_t>(n));
 
-            for (uint32_t i = 0; i < n; i++) {
-                for (uint32_t j = i; j < n; j++) {
+            for (uint32_t i = 0; i < n; i++)
+            {
+                for (uint32_t j = i; j < n; j++)
+                {
                     c_tree_start_end_rmqs[dfuds_repr][i][j] = rmq_ds.rmq(i, j);
                 }
             }
@@ -256,10 +229,10 @@ public:
 
         construct_c_tree_start_end_rmqs(block_size);
 
-        for (uint32_t i = 0; i < ceil((double) n / block_size); i++)
+        for (uint32_t i = 0; i < ceil((double)n / block_size); i++)
         {
             uint32_t start_idx = block_size * i;
-            uint32_t end_idx = min(block_size * (i + 1), n); 
+            uint32_t end_idx = min(block_size * (i + 1), n);
 
             uint64_t min_this_block = v[start_idx];
             uint32_t min_idx_this_block = start_idx;
@@ -289,43 +262,190 @@ public:
         return min_idx_within_block[min_block_idx];
     }
 
-    uint32_t within_block_rmq(uint32_t block_idx, uint32_t s, uint32_t e) {
+    uint32_t within_block_rmq(uint32_t block_idx, uint32_t s, uint32_t e)
+    {
         return (block_idx * block_size) + c_tree_start_end_rmqs[c_trees_dfuds[block_idx]][s][e];
     }
 
     uint32_t rmq(uint32_t s, uint32_t e)
     {
-        uint32_t s_block = (double) s / block_size;
-        uint32_t e_block = (double) e / block_size;
+        uint32_t s_block = (double)s / block_size;
+        uint32_t e_block = (double)e / block_size;
 
-        if (s_block == e_block) {
+        if (s_block == e_block)
+        {
             return within_block_rmq(s_block, s % block_size, e % block_size);
-        } else if ((s % block_size == 0) && ((e % block_size == block_size - 1) || (e == v->size() - 1))) {
+        }
+        else if ((s % block_size == 0) && ((e % block_size == block_size - 1) || (e == v->size() - 1)))
+        {
             return spanning_block_rmq(s_block, e_block);
-        } else if (s % block_size == 0) {
+        }
+        else if (s % block_size == 0)
+        {
             uint32_t within_block_min_idx = within_block_rmq(e_block, 0, e % block_size);
             uint32_t spanning_block_min_idx = spanning_block_rmq(s_block, e_block - 1);
             return ((*v)[within_block_min_idx] < (*v)[spanning_block_min_idx]) ? within_block_min_idx : spanning_block_min_idx;
-        } else if ((e % block_size == block_size - 1) || (e == v->size() - 1)) {
+        }
+        else if ((e % block_size == block_size - 1) || (e == v->size() - 1))
+        {
             uint32_t within_block_min_idx = within_block_rmq(s_block, s % block_size, block_size - 1);
             uint32_t spanning_block_min_idx = spanning_block_rmq(s_block + 1, e_block);
             return ((*v)[within_block_min_idx] < (*v)[spanning_block_min_idx]) ? within_block_min_idx : spanning_block_min_idx;
-        } else if (s_block + 1 == e_block) {
+        }
+        else if (s_block + 1 == e_block)
+        {
             uint32_t within_s_block_min_idx = within_block_rmq(s_block, s % block_size, block_size - 1);
             uint32_t within_e_block_min_idx = within_block_rmq(e_block, 0, e % block_size);
             return ((*v)[within_s_block_min_idx] < (*v)[within_e_block_min_idx]) ? within_s_block_min_idx : within_e_block_min_idx;
-        } else {
+        }
+        else
+        {
             uint32_t within_s_block_min_idx = within_block_rmq(s_block, s % block_size, block_size - 1);
             uint32_t within_e_block_min_idx = within_block_rmq(e_block, 0, e % block_size);
             uint32_t spanning_block_min_idx = spanning_block_rmq(s_block + 1, e_block - 1);
 
-            if ((*v)[within_s_block_min_idx] < (*v)[within_e_block_min_idx]) {
+            if ((*v)[within_s_block_min_idx] < (*v)[within_e_block_min_idx])
+            {
                 return ((*v)[within_s_block_min_idx] < (*v)[spanning_block_min_idx]) ? within_s_block_min_idx : spanning_block_min_idx;
-            } else {
+            }
+            else
+            {
                 return ((*v)[within_e_block_min_idx] < (*v)[spanning_block_min_idx]) ? within_e_block_min_idx : spanning_block_min_idx;
             }
-
         }
+    }
+};
+
+class AbstractBV
+{
+public:
+    virtual uint32_t select0(uint32_t i) = 0;
+    virtual uint32_t select1(uint32_t i) = 0;
+    virtual uint32_t rank0(uint32_t i) = 0;
+    uint32_t rank1(uint32_t i)
+    {
+        return i - rank0(i);
+    }
+};
+
+class NaiveBV : public AbstractBV
+{
+private:
+    vector<uint32_t> select0s;
+    vector<uint32_t> select1s;
+    vector<uint32_t> rank0s;
+
+public:
+    NaiveBV(vector<bool> &bv)
+    {
+        rank0s.push_back(0);
+        for (uint32_t i = 0; i < bv.size(); i++)
+        {
+            if (bv[i] == 0)
+            {
+                select0s.push_back(i);
+                rank0s.push_back(rank0s.back() + 1);
+            }
+            else
+            {
+                select1s.push_back(i);
+                rank0s.push_back(rank0s.back());
+            }
+        }
+    }
+
+    uint32_t select0(uint32_t i) { return select0s[i - 1]; }
+    uint32_t select1(uint32_t i) { return select1s[i - 1]; }
+    uint32_t rank0(uint32_t i) { return rank0s[i]; }
+};
+
+class AbstractPredecessor
+{
+public:
+    virtual uint64_t pred(uint64_t x) = 0;
+};
+
+class EliasFano : public AbstractPredecessor
+{
+private:
+    AbstractBV *upper_half_bv;
+    vector<bool> u_bv;
+    vector<bool> l_bv;
+
+    // uint32_t u_bits;
+    uint32_t l_bits;
+
+    uint64_t max_elem;
+    uint64_t min_elem;
+
+    uint64_t ith_elem(uint32_t i)
+    {
+        uint64_t upper_half = upper_half_bv->select1(i + 1) - i;
+        uint64_t lower_half = 0;
+
+        for (uint32_t j = (l_bits * i); j < (l_bits * (i + 1)); j++)
+        {
+            lower_half *= 2;
+            lower_half += l_bv[j];
+        }
+
+        return (upper_half << l_bits) + lower_half;
+    }
+
+public:
+    EliasFano(vector<uint64_t> &v)
+    {
+        min_elem = v.front();
+        max_elem = v.back();
+
+        uint32_t u_bits = ceil(log2(v.size()));
+        l_bits = ceil(log2(v.back() + 1) - log2(v.size()));
+
+        u_bv = vector<bool>(2 * v.size()); // TODO might need 2n+1, not sure
+        l_bv = vector<bool>(v.size() * l_bits);
+        for (uint32_t i = 0; i < v.size(); i++)
+        {
+            uint64_t upper = v[i] >> l_bits;
+            u_bv[upper + i] = 1;
+
+            for (uint32_t j = 0; j < l_bits; j++)
+            {
+                l_bv[(i * l_bits) + j] = (v[i] >> (l_bits - j - 1)) & 1;
+            }
+        }
+        upper_half_bv = new NaiveBV(u_bv);
+    }
+
+    uint64_t pred(uint64_t x)
+    {
+        if (x < min_elem) {
+            return UINT64_MAX;
+        }
+        if (x >= max_elem) {
+            return max_elem;
+        }
+        uint64_t x_upper_half = x >> l_bits;
+        uint32_t p = (x_upper_half != 0) ? upper_half_bv->select0(x_upper_half) : 0;
+        uint32_t next_p = upper_half_bv->select0(x_upper_half + 1);
+
+
+        uint32_t cur_pred_idx = upper_half_bv->rank1(p) - 1;
+        for (uint32_t i = p + 1; i < next_p; i++)
+        {
+            if (u_bv[i] == 0)
+                break;
+
+            if (ith_elem(cur_pred_idx - p + i) <= x)
+            {
+                cur_pred_idx = cur_pred_idx - p + i;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return ith_elem(cur_pred_idx);
     }
 };
 
@@ -402,14 +522,16 @@ void run_linear_rmq(ifstream &input_file, ofstream &output_file)
         v.push_back(elem);
     }
 
-    AbstractRMQ* rmq_ds;
+    AbstractRMQ *rmq_ds;
 
-    if (((uint32_t) log2(n) / 4) == 0) {
+    if (((uint32_t)log2(n) / 4) == 0)
+    {
         rmq_ds = new LogLinearRMQ(n, v);
-    } else {
+    }
+    else
+    {
         rmq_ds = new LinearRMQ(n, v);
     }
-
 
     uint32_t s, e;
     string line;
@@ -424,18 +546,30 @@ void run_linear_rmq(ifstream &input_file, ofstream &output_file)
     }
 }
 
-
-void test()
+void run_predecessor(ifstream &input_file, ofstream &output_file)
 {
-    vector<uint64_t> v{0, 2, 1, 3};
-    CartesianTree c_tree = construct_cartesian_tree(v, 0, 4, 4);
-    printVector(c_tree.representation);
+    vector<uint64_t> v;
+    uint32_t n;
+
+    input_file >> n;
+
+    uint64_t elem;
+    for (uint32_t i = 0; i < n; i++)
+    {
+        input_file >> elem;
+        v.push_back(elem);
+    }
+
+    AbstractPredecessor* pd_ds = new EliasFano(v);
+
+    uint64_t x;
+    while (input_file >> x) {
+        output_file << pd_ds->pred(x) << endl;
+    }
 }
 
 int main(int argc, char *argv[])
 {
-    // test();
-    // exit(0);
     ifstream input_file(argv[2]);
     if (!input_file.is_open())
     {
@@ -449,6 +583,7 @@ int main(int argc, char *argv[])
 
     if (argv[1] == "pd"s)
     {
+        run_predecessor(input_file, output_file);
     }
     else if (argv[1] == "rmq"s)
     {
@@ -459,26 +594,3 @@ int main(int argc, char *argv[])
         throw invalid_argument("The first parameter must either be 'pd' or 'rmq'.");
     }
 }
-
-// int main() {
-//     int n;
-//     std::cout << "Enter a number: ";
-//     std::cin >> n;
-    
-//     std::vector<int> vec(n);
-    
-//     // Initialize vector with values from 0 to n-1
-//     for(int i = 0; i < n; i++) {
-//         vec[i] = i;
-//     }
-    
-//     // Print the initial vector
-//     printVector(vec);
-
-//     // Generate all possible permutations
-//     while(std::next_permutation(vec.begin(), vec.end())) {
-//         printVector(vec);
-//     }
-    
-//     return 0;
-// }
