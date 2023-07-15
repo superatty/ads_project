@@ -87,12 +87,10 @@ public:
 
     uint32_t rmq(uint32_t s, uint32_t e)
     {
-        uint32_t l = log2(e - s + 1);
-
-        if (is_power_of_2(e - s + 1))
-        {
-            return (l > 0) ? rmq_solutions[s][l - 1] : s;
+        if (s == e) {
+            return s;
         }
+        uint32_t l = log2(e - s);
 
         uint32_t idx1 = (l > 0) ? rmq_solutions[s][l - 1] : s;
         uint32_t idx2 = (l > 0) ? rmq_solutions[e - pow(2, l) + 1][l - 1] : e - pow(2, l) + 1;
@@ -389,18 +387,18 @@ public:
             return max_elem;
         }
         uint64_t x_upper_half = x >> l_bits;
-        uint32_t p = (x_upper_half != 0) ? upper_half_bv->select0(x_upper_half) : 0;
-        uint32_t next_p = upper_half_bv->select0(x_upper_half + 1);
 
-        uint32_t cur_pred_idx = upper_half_bv->rank1(p) - 1;
-        for (uint32_t i = p + 1; i < next_p; i++)
+
+        int32_t p = (x_upper_half != 0) ? upper_half_bv->select0(x_upper_half) : -1;
+        int32_t next_p = upper_half_bv->select0(x_upper_half + 1);
+
+        int32_t cur_pred_idx = (p == -1) ? -1 : upper_half_bv->rank1(p) - 1;
+
+        for (int32_t i = p + 1; i < next_p; i++)
         {
-            if (u_bv[i] == 0)
-                break;
-
-            if (ith_elem(cur_pred_idx - p + i) <= x)
+            if (ith_elem(cur_pred_idx + 1) <= x)
             {
-                cur_pred_idx = cur_pred_idx - p + i;
+                cur_pred_idx += 1;
             }
             else
             {
