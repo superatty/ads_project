@@ -91,9 +91,9 @@ public:
     uint64_t size_in_bits()
     {
         // only rmq_solutions is stored
-        uint64_t size_in_bits = 0;
+        uint64_t size_in_bits = sizeof(rmq_solutions) * 8;
         for (auto &rmq_sol : rmq_solutions)
-            size_in_bits += rmq_sol.size() * 32;
+            size_in_bits += sizeof(rmq_sol) * 8 + rmq_sol.size() * 32;
 
         return size_in_bits;
     }
@@ -167,11 +167,12 @@ public:
     uint64_t size_in_bits()
     {
         // the vector needs to be stored for comparing the answers of the two subqueries
-        uint64_t size_in_bits = (*v).size() * 64;
+        uint64_t size_in_bits = sizeof(*v) * 8 + (*v).size() * 64;
+        size_in_bits += sizeof(rmq_solutions) * 8;
 
         // size of rmq_solutions
         for (auto &rmq_sol : rmq_solutions)
-            size_in_bits += rmq_sol.size() * 32;
+            size_in_bits += sizeof(rmq_sol) * 8 + rmq_sol.size() * 32;
 
         return size_in_bits;
     }
@@ -428,18 +429,22 @@ public:
 
     uint64_t size_in_bits()
     {
-        uint64_t size_in_bits = 32;
-        size_in_bits += (*v).size() * 64;
-        size_in_bits += min_within_block.size() * 64;
-        size_in_bits += min_idx_within_block.size() * 32;
-        size_in_bits += query_spanning_block_rmq_ds->size_in_bits();
+        uint64_t size_in_bits = sizeof(block_size) * 8;
+        size_in_bits += (sizeof(v) + sizeof(*v)) * 8 + (*v).size() * 64;
+        size_in_bits += sizeof(min_within_block) * 8 + min_within_block.size() * 64;
+        size_in_bits += sizeof(min_idx_within_block) * 8 + min_idx_within_block.size() * 32;
+        size_in_bits += (sizeof(query_spanning_block_rmq_ds) + sizeof(*query_spanning_block_rmq_ds)) * 8 + query_spanning_block_rmq_ds->size_in_bits();
 
+        size_in_bits += sizeof(c_trees) * 8;
         for (auto c_tree : c_trees)
-            size_in_bits += c_tree.size();
+            size_in_bits += sizeof(c_tree) * 8 + c_tree.size();
 
-        for (auto &start_end_rmq : c_tree_start_end_rmqs)
+        size_in_bits += sizeof(c_tree_start_end_rmqs) * 8;
+        for (auto &start_end_rmq : c_tree_start_end_rmqs) {
+            size_in_bits += sizeof(start_end_rmq.first) * 8;
             for (auto &end_rmq : start_end_rmq.second)
-                size_in_bits += end_rmq.size() * 32;
+                size_in_bits += sizeof(end_rmq) * 8 + end_rmq.size() * 32;
+            }
 
         return size_in_bits;
     }
@@ -492,7 +497,7 @@ public:
 
     uint64_t size_in_bits()
     {
-        return (select0s.size() + select1s.size()) * 32;
+        return (sizeof(select0s) + sizeof(select1s)) * 8 + (select0s.size() + select1s.size()) * 32;
     }
 };
 
@@ -523,6 +528,10 @@ private:
      */
     AbstractBV *upper_half_bv;
 
+    /**
+     * @brief Size of the upper half bit vector
+     * 
+     */
     uint32_t u_bv_size;
 
     /**
@@ -633,9 +642,9 @@ public:
 
     uint64_t size_in_bits()
     {
-        uint64_t size_in_bits = upper_half_bv->size_in_bits();
-        size_in_bits += l_bv.size();
-        size_in_bits += 32 + 32;
+        uint64_t size_in_bits = upper_half_bv->size_in_bits() + sizeof(upper_half_bv) * 8;
+        size_in_bits += sizeof(l_bv) * 8 + l_bv.size();
+        size_in_bits += (sizeof(u_bv_size) + sizeof(u_bits) + sizeof(l_bits)) * 8;
         return size_in_bits;
     }
 };
@@ -678,19 +687,28 @@ std::tuple<milliseconds, uint64_t> run_rmq(vector<uint64_t> &v, ifstream &input_
     auto t2 = high_resolution_clock::now();
     milliseconds time_in_ms = duration_cast<milliseconds>(t2 - t1);
 
+    vector<tuple<uint32_t, uint32_t>> inputs;
+
     uint32_t s, e;
     string line;
-
-    while (input_file >> line)
-    {
+    while (input_file >> line) {
         size_t comma_idx = line.find(',');
         uint32_t s = stoi(line.substr(0, comma_idx));
         uint32_t e = stoi(line.substr(comma_idx + 1));
 
-        auto t1 = high_resolution_clock::now();
-        uint64_t res = rmq_ds->rmq(s, e);
-        auto t2 = high_resolution_clock::now();
-        time_in_ms += duration_cast<milliseconds>(t2 - t1);
+        inputs.push_back(make_tuple(s, e));
+    }
+    vector<uint64_t> outputs(inputs.size());
+
+    t1 = high_resolution_clock::now();
+    for (size_t i = 0; i < inputs.size(); i++)
+    {
+        outputs[i] = rmq_ds->rmq(get<0>(inputs[i]), get<1>(inputs[i]));
+    }
+    t2 = high_resolution_clock::now();
+    time_in_ms += duration_cast<milliseconds>(t2 - t1);
+
+    for (uint64_t res : outputs) {
         output_file << res << endl;
     }
 
@@ -704,13 +722,21 @@ std::tuple<milliseconds, uint64_t> run_predecessor(vector<uint64_t> &v, ifstream
     auto t2 = high_resolution_clock::now();
     milliseconds time_in_ms = duration_cast<milliseconds>(t2 - t1);
 
+    vector<uint64_t> inputs;
     uint64_t x;
-    while (input_file >> x)
+    while (input_file >> x) inputs.push_back(x);
+    
+    vector<uint64_t> outputs(inputs.size());
+
+    t1 = high_resolution_clock::now();
+    for (size_t i = 0; i < inputs.size(); i++)
     {
-        auto t1 = high_resolution_clock::now();
-        uint64_t res = pd_ds->pred(x);
-        auto t2 = high_resolution_clock::now();
-        time_in_ms += duration_cast<milliseconds>(t2 - t1);
+        outputs[i] = pd_ds->pred(inputs[i]);
+    }
+    t2 = high_resolution_clock::now();
+    time_in_ms += duration_cast<milliseconds>(t2 - t1);
+
+    for (uint64_t res : outputs) {
         output_file << res << endl;
     }
 
