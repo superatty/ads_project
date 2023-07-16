@@ -106,7 +106,7 @@ public:
     uint64_t size_in_bits()
     {
         // TODO should the size of v also be counted?
-        uint64_t size_in_bits = 0;
+        uint64_t size_in_bits = (*v).size() * 64;
 
         for (auto &rmq_sol : rmq_solutions)
             size_in_bits += rmq_sol.size() * 32;
@@ -157,7 +157,7 @@ private:
 
     vector<uint64_t> min_within_block;
     vector<uint32_t> min_idx_within_block;
-    LogLinearRMQ *query_spanning_block_rmq_ds;
+    AbstractRMQ *query_spanning_block_rmq_ds;
 
     vector<vector<bool>> c_trees;
     unordered_map<vector<bool>, vector<vector<uint32_t>>> c_tree_start_end_rmqs;
@@ -195,10 +195,11 @@ public:
     {
         this->v = &v;
         block_size = ceil(log2(n) / 4); // taking the ceiling leads to faster execution with reduced space
+        uint32_t number_of_blocks = ceil((double)n / block_size);
 
         construct_c_tree_start_end_rmqs(block_size);
 
-        for (uint32_t i = 0; i < ceil((double)n / block_size); i++)
+        for (uint32_t i = 0; i < number_of_blocks; i++)
         {
             uint32_t start_idx = block_size * i;
             uint32_t end_idx = min(block_size * (i + 1), n);
@@ -222,7 +223,11 @@ public:
             c_trees.push_back(block_c_tree);
         }
 
-        query_spanning_block_rmq_ds = new LogLinearRMQ(min_within_block.size(), min_within_block);
+        if (number_of_blocks > 100) 
+            query_spanning_block_rmq_ds = new LinearRMQ(number_of_blocks, min_within_block);
+        else
+            query_spanning_block_rmq_ds = new LogLinearRMQ(number_of_blocks, min_within_block);
+
     }
 
     uint32_t spanning_block_rmq(uint32_t s_block, uint32_t e_block)
@@ -289,22 +294,19 @@ public:
     uint64_t size_in_bits()
     {
         uint64_t size_in_bits = 32;
+        size_in_bits += (*v).size() * 64;
         size_in_bits += min_within_block.size() * 64;
         size_in_bits += min_idx_within_block.size() * 32;
         size_in_bits += query_spanning_block_rmq_ds->size_in_bits();
 
         for (auto c_tree : c_trees)
-        {
             size_in_bits += c_tree.size();
-        }
 
         for (auto &start_end_rmq : c_tree_start_end_rmqs)
-        {
             for (auto &end_rmq : start_end_rmq.second)
-            {
                 size_in_bits += end_rmq.size() * 32;
-            }
-        }
+
+        
 
         return size_in_bits;
     }
@@ -315,8 +317,6 @@ class AbstractBV
 public:
     virtual uint32_t select0(uint32_t i) = 0;
     virtual uint32_t select1(uint32_t i) = 0;
-    virtual uint32_t rank0(uint32_t i) = 0;
-    uint32_t rank1(uint32_t i) { return i - rank0(i); };
     virtual uint64_t size_in_bits() = 0;
 };
 
@@ -325,34 +325,25 @@ class NaiveBV : public AbstractBV
 private:
     vector<uint32_t> select0s;
     vector<uint32_t> select1s;
-    vector<uint32_t> rank0s;
 
 public:
     NaiveBV(vector<bool> &bv)
     {
-        rank0s.push_back(0);
         for (uint32_t i = 0; i < bv.size(); i++)
         {
             if (bv[i] == 0)
-            {
                 select0s.push_back(i);
-                rank0s.push_back(rank0s.back() + 1);
-            }
             else
-            {
                 select1s.push_back(i);
-                rank0s.push_back(rank0s.back());
-            }
         }
     }
 
     uint32_t select0(uint32_t i) { return select0s[i - 1]; }
     uint32_t select1(uint32_t i) { return select1s[i - 1]; }
-    uint32_t rank0(uint32_t i) { return rank0s[i]; }
 
     uint64_t size_in_bits()
     {
-        return (select0s.size() + select1s.size() + rank0s.size()) * 32;
+        return (select0s.size() + select1s.size()) * 32;
     }
 };
 
@@ -416,33 +407,23 @@ public:
     uint64_t pred(uint64_t x)
     {
         if (x < min_elem)
-        {
             return UINT64_MAX;
-        }
         if (x >= max_elem)
-        {
             return max_elem;
-        }
         uint64_t x_upper_half = x >> l_bits;
 
-        int32_t p = (x_upper_half != 0) ? upper_half_bv->select0(x_upper_half) : -1;
+        int32_t p = x_upper_half ? upper_half_bv->select0(x_upper_half) : -1;
         int32_t next_p = upper_half_bv->select0(x_upper_half + 1);
 
-        int32_t cur_pred_idx = (p == -1) ? -1 : upper_half_bv->rank1(p) - 1;
+        int32_t s = p - x_upper_half + 1;
+        int32_t e = next_p - x_upper_half + 1;
 
-        for (int32_t i = p + 1; i < next_p; i++)
-        {
-            if (ith_elem(cur_pred_idx + 1) <= x)
-            {
-                cur_pred_idx += 1;
-            }
-            else
-            {
-                break;
-            }
+        for (int32_t cur_pred_idx = s; cur_pred_idx < e; cur_pred_idx++) {
+            if (ith_elem(cur_pred_idx) > x) 
+                return ith_elem(cur_pred_idx - 1);
         }
 
-        return ith_elem(cur_pred_idx);
+        return ith_elem(e - 1);
     }
 
     uint64_t size_in_bits()
@@ -489,10 +470,7 @@ void run_rmq(ifstream &input_file, ofstream &output_file, RMQ_Algorithm rmq_algo
         break;
 
     case RMQ_Algorithm::LINEAR:
-        if (((uint32_t)log2(n) / 4) == 0)
-            rmq_ds = new LogLinearRMQ(n, v);
-        else
-            rmq_ds = new LinearRMQ(n, v);
+        rmq_ds = new LinearRMQ(n, v);
     }
 
     auto t2 = high_resolution_clock::now();
