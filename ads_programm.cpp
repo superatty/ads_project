@@ -16,8 +16,8 @@ using std::chrono::high_resolution_clock;
 using std::chrono::milliseconds;
 
 /**
- * Abtract class for 
- * 
+ * Abtract class for
+ *
  */
 class AbstractRMQ
 {
@@ -33,7 +33,7 @@ private:
 
 public:
     NaiveRMQ(vector<uint64_t> &v)
-    {   
+    {
         uint32_t n = v.size();
         rmq_solutions = vector<vector<uint32_t>>(n - 1);
 
@@ -224,11 +224,10 @@ public:
             c_trees[i] = block_c_tree;
         }
 
-        if (number_of_blocks > 100) 
+        if (number_of_blocks > 100)
             query_spanning_block_rmq_ds = new LinearRMQ(min_within_block);
         else
             query_spanning_block_rmq_ds = new LogLinearRMQ(min_within_block);
-
     }
 
     uint32_t spanning_block_rmq(uint32_t s_block, uint32_t e_block)
@@ -307,8 +306,6 @@ public:
             for (auto &end_rmq : start_end_rmq.second)
                 size_in_bits += end_rmq.size() * 32;
 
-        
-
         return size_in_bits;
     }
 };
@@ -359,7 +356,6 @@ class EliasFano : public AbstractPredecessor
 {
 private:
     AbstractBV *upper_half_bv;
-    vector<bool> u_bv;
     vector<bool> l_bv;
 
     uint32_t l_bits;
@@ -390,7 +386,7 @@ public:
         uint32_t u_bits = ceil(log2(v.size()));
         l_bits = ceil(log2(v.back() + 1) - log2(v.size()));
 
-        u_bv = vector<bool>(pow(2, u_bits) - 1 + v.size()); // TODO might need 2n+1, not sure
+        vector<bool> u_bv = vector<bool>(pow(2, u_bits) - 1 + v.size()); // TODO might need 2n+1, not sure
         l_bv = vector<bool>(v.size() * l_bits);
         for (uint32_t i = 0; i < v.size(); i++)
         {
@@ -398,17 +394,13 @@ public:
             u_bv[upper + i] = 1;
 
             for (uint32_t j = 0; j < l_bits; j++)
-            {
                 l_bv[(i * l_bits) + j] = (v[i] >> (l_bits - j - 1)) & 1;
-            }
         }
         upper_half_bv = new NaiveBV(u_bv);
     }
 
     uint64_t pred(uint64_t x)
     {
-        if (x < min_elem)
-            return UINT64_MAX;
         if (x >= max_elem)
             return max_elem;
         uint64_t x_upper_half = x >> l_bits;
@@ -416,21 +408,32 @@ public:
         int32_t p = x_upper_half ? upper_half_bv->select0(x_upper_half) : -1;
         int32_t next_p = upper_half_bv->select0(x_upper_half + 1);
 
-        int32_t s = p - x_upper_half + 1;
-        int32_t e = next_p - x_upper_half + 1;
+        int32_t left = p - x_upper_half + 1;
+        int32_t right = next_p - x_upper_half;
 
-        for (int32_t cur_pred_idx = s; cur_pred_idx < e; cur_pred_idx++) {
-            if (ith_elem(cur_pred_idx) > x) 
-                return ith_elem(cur_pred_idx - 1);
+        uint64_t result = left ? ith_elem(left - 1) : UINT64_MAX;
+        while (left <= right)
+        {
+            int32_t mid = left + (right - left) / 2;
+            auto elem = ith_elem(mid);
+            if (ith_elem(mid) <= x)
+            {
+                result = elem;
+                left = mid + 1;
+            }
+            else
+            {
+                right = mid - 1;
+            }
         }
 
-        return ith_elem(e - 1);
+        return result;
     }
 
     uint64_t size_in_bits()
     {
         uint64_t size_in_bits = upper_half_bv->size_in_bits();
-        size_in_bits += u_bv.size() + l_bv.size();
+        size_in_bits += l_bv.size();
         size_in_bits += 32 + 64 + 64;
         return size_in_bits;
     }
@@ -443,7 +446,8 @@ enum class RMQ_Algorithm
     LINEAR
 };
 
-void print_result(std::string algo, milliseconds time_in_ms, uint64_t space_in_bits) {
+void print_result(std::string algo, milliseconds time_in_ms, uint64_t space_in_bits)
+{
     cout << "RESULT algo=" << algo << " name=atalay_donat time=" << time_in_ms.count() << " space=" << space_in_bits << endl;
 }
 
