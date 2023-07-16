@@ -414,7 +414,7 @@ public:
         uint32_t u_bits = ceil(log2(v.size()));
         l_bits = ceil(log2(v.back() + 1) - log2(v.size()));
 
-        u_bv = vector<bool>(2 * v.size()); // TODO might need 2n+1, not sure
+        u_bv = vector<bool>(pow(2, u_bits) - 1 + v.size()); // TODO might need 2n+1, not sure
         l_bv = vector<bool>(v.size() * l_bits);
         for (uint32_t i = 0; i < v.size(); i++)
         {
