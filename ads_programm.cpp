@@ -522,6 +522,9 @@ private:
      * @brief Bitvector data structure of the upper half supporting select queries
      */
     AbstractBV *upper_half_bv;
+
+    uint32_t u_bv_size;
+
     /**
      * @brief Bitvector of the lower half
      */
@@ -578,6 +581,7 @@ public:
         be 2^u_bits - 1 + n - 1. Therefore the size of the upper half bitvector is 2^u_bits - 1 + n.
         */ 
         vector<bool> u_bv = vector<bool>(pow(2, u_bits) - 1 + v.size());
+        u_bv_size = u_bv.size();
         // lower bit vector stores l_bits per element in the vector
         l_bv = vector<bool>(v.size() * l_bits);
         for (uint32_t i = 0; i < v.size(); i++)
@@ -599,7 +603,7 @@ public:
 
         // index of the zeroes in the upper half bitvector between which the predecessor might be in (p is -1 if the upper half is 0, it works with the variables left and right)
         int32_t p = x_upper_half ? upper_half_bv->select0(x_upper_half) : -1;
-        int32_t next_p = upper_half_bv->select0(x_upper_half + 1);
+        int32_t next_p = (x_upper_half != (pow(2, u_bits))) ? upper_half_bv->select0(x_upper_half + 1) : u_bv_size;
 
         // indices of the search range in the vector
         int32_t left = p - x_upper_half + 1;
