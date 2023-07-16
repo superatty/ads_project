@@ -14,6 +14,10 @@ using std::chrono::duration_cast;
 using std::chrono::high_resolution_clock;
 using std::chrono::milliseconds;
 
+/**
+ * Abtract class for 
+ * 
+ */
 class AbstractRMQ
 {
 public:
@@ -27,8 +31,9 @@ private:
     vector<vector<uint32_t>> rmq_solutions;
 
 public:
-    NaiveRMQ(uint32_t n, vector<uint64_t> &v)
-    {
+    NaiveRMQ(vector<uint64_t> &v)
+    {   
+        uint32_t n = v.size();
         rmq_solutions = vector<vector<uint32_t>>(n - 1);
 
         for (uint32_t i = 0; i < n - 1; i++)
@@ -67,8 +72,9 @@ private:
     vector<uint64_t> *v;
 
 public:
-    LogLinearRMQ(uint32_t n, vector<uint64_t> &v)
+    LogLinearRMQ(vector<uint64_t> &v)
     {
+        uint32_t n = v.size();
         rmq_solutions = vector<vector<uint32_t>>(n - 1);
         this->v = &v;
 
@@ -105,7 +111,6 @@ public:
 
     uint64_t size_in_bits()
     {
-        // TODO should the size of v also be counted?
         uint64_t size_in_bits = (*v).size() * 64;
 
         for (auto &rmq_sol : rmq_solutions)
@@ -114,15 +119,6 @@ public:
         return size_in_bits;
     }
 };
-
-// TODO remove this in the last commit
-template <typename T>
-void printVector(const std::vector<T> &vec)
-{
-    for (T i : vec)
-        std::cout << i << " ";
-    std::cout << "\n";
-}
 
 vector<bool> construct_c_tree(vector<uint64_t> &v, uint32_t start_idx, uint32_t end_idx, uint32_t block_size)
 {
@@ -172,7 +168,7 @@ private:
 
         do
         {
-            LogLinearRMQ rmq_ds = LogLinearRMQ(n, v);
+            AbstractRMQ *rmq_ds = new NaiveRMQ(v);
             vector<bool> c_tree = construct_c_tree(v, 0, n, n);
 
             if (c_tree_start_end_rmqs.find(c_tree) != c_tree_start_end_rmqs.end())
@@ -185,15 +181,16 @@ private:
             {
                 c_tree_start_end_rmqs[c_tree][i] = vector<uint32_t>(n - i);
                 for (uint32_t j = i + 1; j < n; j++)
-                    c_tree_start_end_rmqs[c_tree][i][j - 1] = rmq_ds.rmq(i, j);
+                    c_tree_start_end_rmqs[c_tree][i][j - 1] = rmq_ds->rmq(i, j);
             }
         } while (next_permutation(v.begin(), v.end()));
     }
 
 public:
-    LinearRMQ(uint32_t n, vector<uint64_t> &v)
+    LinearRMQ(vector<uint64_t> &v)
     {
         this->v = &v;
+        uint32_t n = v.size();
         block_size = ceil(log2(n) / 4); // taking the ceiling leads to faster execution with reduced space
         uint32_t number_of_blocks = ceil((double)n / block_size);
 
@@ -228,9 +225,9 @@ public:
         }
 
         if (number_of_blocks > 100) 
-            query_spanning_block_rmq_ds = new LinearRMQ(number_of_blocks, min_within_block);
+            query_spanning_block_rmq_ds = new LinearRMQ(min_within_block);
         else
-            query_spanning_block_rmq_ds = new LogLinearRMQ(number_of_blocks, min_within_block);
+            query_spanning_block_rmq_ds = new LogLinearRMQ(min_within_block);
 
     }
 
@@ -466,15 +463,15 @@ void run_rmq(ifstream &input_file, ofstream &output_file, RMQ_Algorithm rmq_algo
     switch (rmq_algo)
     {
     case RMQ_Algorithm::NAIVE:
-        rmq_ds = new NaiveRMQ(n, v);
+        rmq_ds = new NaiveRMQ(v);
         break;
 
     case RMQ_Algorithm::LOGLINEAR:
-        rmq_ds = new LogLinearRMQ(n, v);
+        rmq_ds = new LogLinearRMQ(v);
         break;
 
     case RMQ_Algorithm::LINEAR:
-        rmq_ds = new LinearRMQ(n, v);
+        rmq_ds = new LinearRMQ(v);
     }
 
     auto t2 = high_resolution_clock::now();
