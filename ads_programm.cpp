@@ -197,6 +197,10 @@ public:
         block_size = ceil(log2(n) / 4); // taking the ceiling leads to faster execution with reduced space
         uint32_t number_of_blocks = ceil((double)n / block_size);
 
+        min_within_block = vector<uint64_t>(number_of_blocks);
+        min_idx_within_block = vector<uint32_t>(number_of_blocks);
+        c_trees = vector<vector<bool>>(number_of_blocks);
+
         construct_c_tree_start_end_rmqs(block_size);
 
         for (uint32_t i = 0; i < number_of_blocks; i++)
@@ -216,11 +220,11 @@ public:
                 }
             }
 
-            min_within_block.push_back(min_this_block);
-            min_idx_within_block.push_back(min_idx_this_block);
+            min_within_block[i] = min_this_block;
+            min_idx_within_block[i] = min_idx_this_block;
 
             vector<bool> block_c_tree = construct_c_tree(v, start_idx, end_idx, block_size);
-            c_trees.push_back(block_c_tree);
+            c_trees[i] = block_c_tree;
         }
 
         if (number_of_blocks > 100) 
