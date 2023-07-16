@@ -37,9 +37,7 @@ public:
             for (uint32_t j = i + 1; j < n; j++)
             {
                 if (v[j] < v[cur_min_idx])
-                {
                     cur_min_idx = j;
-                }
                 rmq_solutions[i].push_back(cur_min_idx);
             }
         }
@@ -56,9 +54,7 @@ public:
     {
         uint64_t size_in_bits = 0;
         for (auto &rmq_sol : rmq_solutions)
-        {
             size_in_bits += rmq_sol.size() * 32;
-        }
 
         return size_in_bits;
     }
@@ -85,13 +81,9 @@ public:
                 idx1 = (l > 1) ? rmq_solutions[s][l - 2] : s;
                 idx2 = (l > 1) ? rmq_solutions[s + pow(2, l - 1)][l - 2] : s + pow(2, l - 1);
                 if (v[idx1] < v[idx2])
-                {
                     rmq_solutions[s].push_back(idx1);
-                }
                 else
-                {
                     rmq_solutions[s].push_back(idx2);
-                }
             }
         }
     }
@@ -99,22 +91,16 @@ public:
     uint32_t rmq(uint32_t s, uint32_t e)
     {
         if (s == e)
-        {
             return s;
-        }
         uint32_t l = log2(e - s);
 
         uint32_t idx1 = (l > 0) ? rmq_solutions[s][l - 1] : s;
         uint32_t idx2 = (l > 0) ? rmq_solutions[e - pow(2, l) + 1][l - 1] : e - pow(2, l) + 1;
 
         if ((*v)[idx1] < (*v)[idx2])
-        {
             return idx1;
-        }
         else
-        {
             return idx2;
-        }
     }
 
     uint64_t size_in_bits()
@@ -123,21 +109,18 @@ public:
         uint64_t size_in_bits = 0;
 
         for (auto &rmq_sol : rmq_solutions)
-        {
             size_in_bits += rmq_sol.size() * 32;
-        }
 
         return size_in_bits;
     }
 };
 
+// TODO remove this in the last commit
 template <typename T>
 void printVector(const std::vector<T> &vec)
 {
     for (T i : vec)
-    {
         std::cout << i << " ";
-    }
     std::cout << "\n";
 }
 
@@ -195,12 +178,14 @@ private:
             if (c_tree_start_end_rmqs.find(c_tree) != c_tree_start_end_rmqs.end())
                 continue;
 
-            c_tree_start_end_rmqs[c_tree] = vector<vector<uint32_t>>(n, vector<uint32_t>(n)); // TODO The required bits can be reduced here
+            // c_tree_start_end_rmqs[c_tree] = vector<vector<uint32_t>>(n, vector<uint32_t>(n)); // TODO The required bits can be reduced here
+            c_tree_start_end_rmqs[c_tree] = vector<vector<uint32_t>>(n);
 
-            for (uint32_t i = 0; i < n; i++)
+            for (uint32_t i = 0; i < n - 1; i++)
             {
-                for (uint32_t j = i; j < n; j++)
-                    c_tree_start_end_rmqs[c_tree][i][j] = rmq_ds.rmq(i, j);
+                c_tree_start_end_rmqs[c_tree][i] = vector<uint32_t>(n - i);
+                for (uint32_t j = i + 1; j < n; j++)
+                    c_tree_start_end_rmqs[c_tree][i][j - 1] = rmq_ds.rmq(i, j);
             }
         } while (next_permutation(v.begin(), v.end()));
     }
@@ -248,7 +233,9 @@ public:
 
     uint32_t within_block_rmq(uint32_t block_idx, uint32_t s, uint32_t e)
     {
-        return (block_idx * block_size) + c_tree_start_end_rmqs[c_trees[block_idx]][s][e];
+        if (s == e)
+            return (block_idx * block_size) + s;
+        return (block_idx * block_size) + c_tree_start_end_rmqs[c_trees[block_idx]][s][e - 1];
     }
 
     uint32_t rmq(uint32_t s, uint32_t e)
@@ -329,10 +316,7 @@ public:
     virtual uint32_t select0(uint32_t i) = 0;
     virtual uint32_t select1(uint32_t i) = 0;
     virtual uint32_t rank0(uint32_t i) = 0;
-    uint32_t rank1(uint32_t i)
-    {
-        return i - rank0(i);
-    }
+    uint32_t rank1(uint32_t i) { return i - rank0(i); };
     virtual uint64_t size_in_bits() = 0;
 };
 
@@ -470,9 +454,15 @@ public:
     }
 };
 
-enum class RMQ_Algorithm { NAIVE, LOGLINEAR, LINEAR};
+enum class RMQ_Algorithm
+{
+    NAIVE,
+    LOGLINEAR,
+    LINEAR
+};
 
-void run_rmq(ifstream &input_file, ofstream &output_file, RMQ_Algorithm rmq_algo = RMQ_Algorithm::LINEAR) {
+void run_rmq(ifstream &input_file, ofstream &output_file, RMQ_Algorithm rmq_algo = RMQ_Algorithm::LINEAR)
+{
     vector<uint64_t> v;
     uint32_t n;
 
@@ -488,20 +478,21 @@ void run_rmq(ifstream &input_file, ofstream &output_file, RMQ_Algorithm rmq_algo
     AbstractRMQ *rmq_ds;
 
     auto t1 = high_resolution_clock::now();
-    switch (rmq_algo) {
-        case RMQ_Algorithm::NAIVE: 
-            rmq_ds = new NaiveRMQ(n, v);
-            break;
-        
-        case RMQ_Algorithm::LOGLINEAR:
-            rmq_ds = new LogLinearRMQ(n, v);
-            break;
+    switch (rmq_algo)
+    {
+    case RMQ_Algorithm::NAIVE:
+        rmq_ds = new NaiveRMQ(n, v);
+        break;
 
-        case RMQ_Algorithm:: LINEAR:
-            if (((uint32_t)log2(n) / 4) == 0)
-                rmq_ds = new LogLinearRMQ(n, v);
-            else
-                rmq_ds = new LinearRMQ(n, v);
+    case RMQ_Algorithm::LOGLINEAR:
+        rmq_ds = new LogLinearRMQ(n, v);
+        break;
+
+    case RMQ_Algorithm::LINEAR:
+        if (((uint32_t)log2(n) / 4) == 0)
+            rmq_ds = new LogLinearRMQ(n, v);
+        else
+            rmq_ds = new LinearRMQ(n, v);
     }
 
     auto t2 = high_resolution_clock::now();
@@ -520,8 +511,6 @@ void run_rmq(ifstream &input_file, ofstream &output_file, RMQ_Algorithm rmq_algo
         uint64_t res = rmq_ds->rmq(s, e);
         auto t2 = high_resolution_clock::now();
         time_in_ms += duration_cast<milliseconds>(t2 - t1);
-        output_file << res << endl;
-
         output_file << res << endl;
     }
 
