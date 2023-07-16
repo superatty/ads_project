@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include <chrono>
+#include <tuple>
 
 using namespace std;
 using std::chrono::duration_cast;
@@ -174,7 +175,6 @@ private:
             if (c_tree_start_end_rmqs.find(c_tree) != c_tree_start_end_rmqs.end())
                 continue;
 
-            // c_tree_start_end_rmqs[c_tree] = vector<vector<uint32_t>>(n, vector<uint32_t>(n)); // TODO The required bits can be reduced here
             c_tree_start_end_rmqs[c_tree] = vector<vector<uint32_t>>(n);
 
             for (uint32_t i = 0; i < n - 1; i++)
@@ -443,35 +443,31 @@ enum class RMQ_Algorithm
     LINEAR
 };
 
-void run_rmq(ifstream &input_file, ofstream &output_file, RMQ_Algorithm rmq_algo = RMQ_Algorithm::LINEAR)
+void print_result(std::string algo, milliseconds time_in_ms, uint64_t space_in_bits) {
+    cout << "RESULT algo=" << algo << " name=atalay_donat time=" << time_in_ms.count() << " space=" << space_in_bits << endl;
+}
+
+std::tuple<milliseconds, uint64_t> run_rmq(vector<uint64_t> &v, ifstream &input_file, ofstream &output_file, RMQ_Algorithm rmq_algo = RMQ_Algorithm::LINEAR)
 {
-    vector<uint64_t> v;
-    uint32_t n;
-
-    input_file >> n;
-
-    uint64_t elem;
-    for (uint32_t i = 0; i < n; i++)
-    {
-        input_file >> elem;
-        v.push_back(elem);
-    }
-
     AbstractRMQ *rmq_ds;
+    std::string algo_name;
 
     auto t1 = high_resolution_clock::now();
     switch (rmq_algo)
     {
     case RMQ_Algorithm::NAIVE:
         rmq_ds = new NaiveRMQ(v);
+        algo_name = "naivermq";
         break;
 
     case RMQ_Algorithm::LOGLINEAR:
         rmq_ds = new LogLinearRMQ(v);
+        algo_name = "loglinearrmq";
         break;
 
     case RMQ_Algorithm::LINEAR:
         rmq_ds = new LinearRMQ(v);
+        algo_name = "rmq";
     }
 
     auto t2 = high_resolution_clock::now();
@@ -493,31 +489,15 @@ void run_rmq(ifstream &input_file, ofstream &output_file, RMQ_Algorithm rmq_algo
         output_file << res << endl;
     }
 
-    uint64_t space_in_bits = rmq_ds->size_in_bits();
-
-    cout << "RESULT algo=rmq name=atalay_donat time=" << time_in_ms.count() << " space=" << space_in_bits << endl;
+    return make_tuple(time_in_ms, rmq_ds->size_in_bits());
 }
 
-void run_predecessor(ifstream &input_file, ofstream &output_file)
+std::tuple<milliseconds, uint64_t> run_predecessor(vector<uint64_t> &v, ifstream &input_file, ofstream &output_file)
 {
-    vector<uint64_t> v;
-    uint32_t n;
-
-    input_file >> n;
-
-    uint64_t elem;
-    for (uint32_t i = 0; i < n; i++)
-    {
-        input_file >> elem;
-        v.push_back(elem);
-    }
-
     auto t1 = high_resolution_clock::now();
     AbstractPredecessor *pd_ds = new EliasFano(v);
     auto t2 = high_resolution_clock::now();
     milliseconds time_in_ms = duration_cast<milliseconds>(t2 - t1);
-
-    vector<uint64_t> results(n);
 
     uint64_t x;
     while (input_file >> x)
@@ -529,9 +509,7 @@ void run_predecessor(ifstream &input_file, ofstream &output_file)
         output_file << res << endl;
     }
 
-    uint64_t space_in_bits = pd_ds->size_in_bits();
-
-    cout << "RESULT algo=pd name=atalay_donat time=" << time_in_ms.count() << " space=" << space_in_bits << endl;
+    return make_tuple(time_in_ms, pd_ds->size_in_bits());
 }
 
 int main(int argc, char *argv[])
@@ -543,14 +521,26 @@ int main(int argc, char *argv[])
     if (!output_file.is_open())
         throw runtime_error("Unable to open output file "s + argv[3]);
 
+    uint32_t n;
+    input_file >> n;
+
+    vector<uint64_t> v(n);
+    for (uint32_t i = 0; i < n; i++)
+        input_file >> v[i];
+
+    milliseconds time_in_ms;
+    uint64_t space_in_bits;
+
     if (argv[1] == "pd"s)
-        run_predecessor(input_file, output_file);
+        tie(time_in_ms, space_in_bits) = run_predecessor(v, input_file, output_file);
     else if (argv[1] == "rmq"s)
-        run_rmq(input_file, output_file);
+        tie(time_in_ms, space_in_bits) = run_rmq(v, input_file, output_file);
     else if (argv[1] == "loglinearrmq"s)
-        run_rmq(input_file, output_file, RMQ_Algorithm::LOGLINEAR);
+        tie(time_in_ms, space_in_bits) = run_rmq(v, input_file, output_file, RMQ_Algorithm::LOGLINEAR);
     else if (argv[1] == "naivermq"s)
-        run_rmq(input_file, output_file, RMQ_Algorithm::NAIVE);
+        tie(time_in_ms, space_in_bits) = run_rmq(v, input_file, output_file, RMQ_Algorithm::NAIVE);
     else
         throw invalid_argument("The first parameter must either be 'pd', 'rmq', 'loglinearrmq' or 'naivermq'.");
+
+    print_result(argv[1], time_in_ms, space_in_bits);
 }
