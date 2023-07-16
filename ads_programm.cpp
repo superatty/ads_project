@@ -7,13 +7,18 @@
 #include <cmath>
 #include <unordered_map>
 #include <algorithm>
+#include <chrono>
 
 using namespace std;
+using std::chrono::duration_cast;
+using std::chrono::high_resolution_clock;
+using std::chrono::milliseconds;
 
 class AbstractRMQ
 {
 public:
     virtual uint32_t rmq(uint32_t, uint32_t) = 0;
+    virtual uint64_t size_in_bits() = 0;
 };
 
 class NaiveRMQ : public AbstractRMQ
@@ -45,6 +50,17 @@ public:
         if (s == e)
             return s;
         return rmq_solutions[s][e - s - 1];
+    }
+
+    uint64_t size_in_bits()
+    {
+        uint64_t size_in_bits = 0;
+        for (auto &rmq_sol : rmq_solutions)
+        {
+            size_in_bits += rmq_sol.size() * 32;
+        }
+
+        return size_in_bits;
     }
 };
 
@@ -99,6 +115,19 @@ public:
         {
             return idx2;
         }
+    }
+
+    uint64_t size_in_bits()
+    {
+        // TODO should the size of v also be counted?
+        uint64_t size_in_bits = 0;
+
+        for (auto &rmq_sol : rmq_solutions)
+        {
+            size_in_bits += rmq_sol.size() * 32;
+        }
+
+        return size_in_bits;
     }
 };
 
@@ -156,9 +185,7 @@ private:
 
         // Initialize vector with values from 0 to n-1
         for (uint32_t i = 0; i < n; i++)
-        {
             v[i] = i;
-        }
 
         do
         {
@@ -168,7 +195,7 @@ private:
             if (c_tree_start_end_rmqs.find(c_tree) != c_tree_start_end_rmqs.end())
                 continue;
 
-            c_tree_start_end_rmqs[c_tree] = vector<vector<uint32_t>>(n, vector<uint32_t>(n));
+            c_tree_start_end_rmqs[c_tree] = vector<vector<uint32_t>>(n, vector<uint32_t>(n)); // TODO The required bits can be reduced here
 
             for (uint32_t i = 0; i < n; i++)
             {
@@ -182,7 +209,7 @@ public:
     LinearRMQ(uint32_t n, vector<uint64_t> &v)
     {
         this->v = &v;
-        block_size = log2(n) / 4;
+        block_size = ceil(log2(n) / 4); // taking the ceiling leads to faster execution with reduced space
 
         construct_c_tree_start_end_rmqs(block_size);
 
@@ -271,6 +298,29 @@ public:
             }
         }
     }
+
+    uint64_t size_in_bits()
+    {
+        uint64_t size_in_bits = 32;
+        size_in_bits += min_within_block.size() * 64;
+        size_in_bits += min_idx_within_block.size() * 32;
+        size_in_bits += query_spanning_block_rmq_ds->size_in_bits();
+
+        for (auto c_tree : c_trees)
+        {
+            size_in_bits += c_tree.size();
+        }
+
+        for (auto &start_end_rmq : c_tree_start_end_rmqs)
+        {
+            for (auto &end_rmq : start_end_rmq.second)
+            {
+                size_in_bits += end_rmq.size() * 32;
+            }
+        }
+
+        return size_in_bits;
+    }
 };
 
 class AbstractBV
@@ -283,6 +333,7 @@ public:
     {
         return i - rank0(i);
     }
+    virtual uint64_t size_in_bits() = 0;
 };
 
 class NaiveBV : public AbstractBV
@@ -314,12 +365,18 @@ public:
     uint32_t select0(uint32_t i) { return select0s[i - 1]; }
     uint32_t select1(uint32_t i) { return select1s[i - 1]; }
     uint32_t rank0(uint32_t i) { return rank0s[i]; }
+
+    uint64_t size_in_bits()
+    {
+        return (select0s.size() + select1s.size() + rank0s.size()) * 32;
+    }
 };
 
 class AbstractPredecessor
 {
 public:
     virtual uint64_t pred(uint64_t x) = 0;
+    virtual uint64_t size_in_bits() = 0;
 };
 
 class EliasFano : public AbstractPredecessor
@@ -403,69 +460,19 @@ public:
 
         return ith_elem(cur_pred_idx);
     }
+
+    uint64_t size_in_bits()
+    {
+        uint64_t size_in_bits = upper_half_bv->size_in_bits();
+        size_in_bits += u_bv.size() + l_bv.size();
+        size_in_bits += 32 + 64 + 64;
+        return size_in_bits;
+    }
 };
 
-void run_naive_rmq(ifstream &input_file, ofstream &output_file)
-{
-    vector<uint64_t> v;
-    uint32_t n;
+enum class RMQ_Algorithm { NAIVE, LOGLINEAR, LINEAR};
 
-    input_file >> n;
-
-    uint64_t elem;
-    for (uint32_t i = 0; i < n; i++)
-    {
-        input_file >> elem;
-        v.push_back(elem);
-    }
-
-    NaiveRMQ rmq_ds = NaiveRMQ(n, v);
-    v.clear();
-
-    uint32_t s, e;
-    string line;
-
-    while (input_file >> line)
-    {
-        size_t comma_idx = line.find(',');
-        uint32_t s = stoi(line.substr(0, comma_idx));
-        uint32_t e = stoi(line.substr(comma_idx + 1));
-
-        output_file << rmq_ds.rmq(s, e) << endl;
-    }
-}
-
-void run_loglinear_rmq(ifstream &input_file, ofstream &output_file)
-{
-    vector<uint64_t> v;
-    uint32_t n;
-
-    input_file >> n;
-
-    uint64_t elem;
-    for (uint32_t i = 0; i < n; i++)
-    {
-        input_file >> elem;
-        v.push_back(elem);
-    }
-
-    LogLinearRMQ rmq_ds = LogLinearRMQ(n, v);
-
-    uint32_t s, e;
-    string line;
-
-    while (input_file >> line)
-    {
-        size_t comma_idx = line.find(',');
-        uint32_t s = stoi(line.substr(0, comma_idx));
-        uint32_t e = stoi(line.substr(comma_idx + 1));
-
-        output_file << rmq_ds.rmq(s, e) << endl;
-    }
-}
-
-void run_linear_rmq(ifstream &input_file, ofstream &output_file)
-{
+void run_rmq(ifstream &input_file, ofstream &output_file, RMQ_Algorithm rmq_algo = RMQ_Algorithm::LINEAR) {
     vector<uint64_t> v;
     uint32_t n;
 
@@ -480,14 +487,25 @@ void run_linear_rmq(ifstream &input_file, ofstream &output_file)
 
     AbstractRMQ *rmq_ds;
 
-    if (((uint32_t)log2(n) / 4) == 0)
-    {
-        rmq_ds = new LogLinearRMQ(n, v);
+    auto t1 = high_resolution_clock::now();
+    switch (rmq_algo) {
+        case RMQ_Algorithm::NAIVE: 
+            rmq_ds = new NaiveRMQ(n, v);
+            break;
+        
+        case RMQ_Algorithm::LOGLINEAR:
+            rmq_ds = new LogLinearRMQ(n, v);
+            break;
+
+        case RMQ_Algorithm:: LINEAR:
+            if (((uint32_t)log2(n) / 4) == 0)
+                rmq_ds = new LogLinearRMQ(n, v);
+            else
+                rmq_ds = new LinearRMQ(n, v);
     }
-    else
-    {
-        rmq_ds = new LinearRMQ(n, v);
-    }
+
+    auto t2 = high_resolution_clock::now();
+    milliseconds time_in_ms = duration_cast<milliseconds>(t2 - t1);
 
     uint32_t s, e;
     string line;
@@ -498,8 +516,18 @@ void run_linear_rmq(ifstream &input_file, ofstream &output_file)
         uint32_t s = stoi(line.substr(0, comma_idx));
         uint32_t e = stoi(line.substr(comma_idx + 1));
 
-        output_file << rmq_ds->rmq(s, e) << endl;
+        auto t1 = high_resolution_clock::now();
+        uint64_t res = rmq_ds->rmq(s, e);
+        auto t2 = high_resolution_clock::now();
+        time_in_ms += duration_cast<milliseconds>(t2 - t1);
+        output_file << res << endl;
+
+        output_file << res << endl;
     }
+
+    uint64_t space_in_bits = rmq_ds->size_in_bits();
+
+    cout << "RESULT algo=rmq name=atalay_donat time=" << time_in_ms.count() << " space=" << space_in_bits << endl;
 }
 
 void run_predecessor(ifstream &input_file, ofstream &output_file)
@@ -516,38 +544,45 @@ void run_predecessor(ifstream &input_file, ofstream &output_file)
         v.push_back(elem);
     }
 
+    auto t1 = high_resolution_clock::now();
     AbstractPredecessor *pd_ds = new EliasFano(v);
+    auto t2 = high_resolution_clock::now();
+    milliseconds time_in_ms = duration_cast<milliseconds>(t2 - t1);
+
+    vector<uint64_t> results(n);
 
     uint64_t x;
     while (input_file >> x)
     {
-        output_file << pd_ds->pred(x) << endl;
+        auto t1 = high_resolution_clock::now();
+        uint64_t res = pd_ds->pred(x);
+        auto t2 = high_resolution_clock::now();
+        time_in_ms += duration_cast<milliseconds>(t2 - t1);
+        output_file << res << endl;
     }
+
+    uint64_t space_in_bits = pd_ds->size_in_bits();
+
+    cout << "RESULT algo=pd name=atalay_donat time=" << time_in_ms.count() << " space=" << space_in_bits << endl;
 }
 
 int main(int argc, char *argv[])
 {
     ifstream input_file(argv[2]);
     if (!input_file.is_open())
-    {
         throw runtime_error("Unable to open input file "s + argv[2]);
-    }
     ofstream output_file(argv[3]);
     if (!output_file.is_open())
-    {
         throw runtime_error("Unable to open output file "s + argv[3]);
-    }
 
     if (argv[1] == "pd"s)
-    {
         run_predecessor(input_file, output_file);
-    }
     else if (argv[1] == "rmq"s)
-    {
-        run_loglinear_rmq(input_file, output_file);
-    }
+        run_rmq(input_file, output_file);
+    else if (argv[1] == "loglinearrmq"s)
+        run_rmq(input_file, output_file, RMQ_Algorithm::LOGLINEAR);
+    else if (argv[1] == "naivermq"s)
+        run_rmq(input_file, output_file, RMQ_Algorithm::NAIVE);
     else
-    {
-        throw invalid_argument("The first parameter must either be 'pd' or 'rmq'.");
-    }
+        throw invalid_argument("The first parameter must either be 'pd', 'rmq', 'loglinearrmq' or 'naivermq'.");
 }
