@@ -34,5 +34,5 @@ The input file of each command should correspond to the style described in the p
 
 - Naive RMQ
 ```
-./ads_programm naive <input_file> <output_file>
+./ads_programm naivermq <input_file> <output_file>
 ```
